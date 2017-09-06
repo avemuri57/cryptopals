@@ -38,7 +38,12 @@ def find_key(input):
 
 	sorted_results = sorted(results,key=lambda x:x[1],reverse=True)
 	return sorted_results
+	
 
+def generate_rep_key(key,strlen):
+	reps = strlen/len(key)
+	mod = strlen % len(key)
+	return reps*key + key[:mod]
 
 scoring_chart = {
     'a': 0.0651738,
