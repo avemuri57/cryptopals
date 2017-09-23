@@ -1,3 +1,5 @@
+from __future__ import division
+
 def base64_to_hex(b64str):
     return b64str.decode('base64').encode('hex').rstrip()
 
@@ -5,10 +7,8 @@ def base64_to_hex(b64str):
 def hex_to_base64(hexstr):
     return hexstr.decode('hex').encode('base64').rstrip()
 
-
-
 def fl_xor(x,y):
-    if len(x) is not len(y):
+    if len(x) != len(y):
         print('Buffers not the same length')
         return
     else:
@@ -24,6 +24,14 @@ def analyze_freq(str):
 			score += scoring_chart[x.lower()]
 	return score
 
+def repeating_key_xor(intxt, key):
+    outtxt = ""
+
+    for i, c in enumerate(intxt):
+        outtxt += chr(ord(c) ^ ord(key[i % len(key)]))
+
+    return outtxt
+
 #This is specifically for single character keys
 def find_key(input):
 	x = input.decode('hex')
@@ -38,12 +46,37 @@ def find_key(input):
 
 	sorted_results = sorted(results,key=lambda x:x[1],reverse=True)
 	return sorted_results
-	
+
+def find_key_bin(input):
+    x = input
+    max_score = 0
+    winner = ''
+    results = []
+    for i in range(256):
+        buffx = chr(i)*len(x)
+        result = fl_xor(buffx,x)
+        score = analyze_freq(result)
+        results.append((result,score))
+
+    sorted_results = sorted(results,key=lambda x:x[1],reverse=True)
+    return sorted_results[0]
 
 def generate_rep_key(key,strlen):
 	reps = strlen/len(key)
 	mod = strlen % len(key)
 	return reps*key + key[:mod]
+
+
+def hamming_distance(str1,str2):
+    return sum([bin(ord(chr1)^ord(chr2)).count('1')  for chr1, chr2 in zip(str1,str2)])
+
+def repeating_key_xor(intxt, key):
+    outtxt = ""
+
+    for i, c in enumerate(intxt):
+        outtxt += chr(ord(c) ^ ord(key[i % len(key)]))
+
+    return outtxt
 
 scoring_chart = {
     'a': 0.0651738,
@@ -75,5 +108,65 @@ scoring_chart = {
     ' ': 0.1918182 
 }
 
+def char_freq(chars):
+    freq = 0
+    most_freq_letters = 'etaoinhs'
 
+    for c in chars:
+        if c in most_freq_letters:
+            freq += 1
+
+    return freq
+
+
+def break_single_byte(ctxt):
+    freqs = []
+
+    for key in range(0xFF + 1):
+        chars = []
+        for c in ctxt:
+            chars.append(chr(ord(c) ^ key))
+        freqs.append(char_freq(chars))
+
+    return freqs.index(max(freqs))
+
+def find_key_length(file):
+    avg_hamming_dist = []
+    for KEYSIZE in range(2,41):
+        b1, b2, b3, b4 = file[:KEYSIZE], file[KEYSIZE:2*KEYSIZE], \
+            file[2*KEYSIZE:3*KEYSIZE], file[3*KEYSIZE:4*KEYSIZE]
+        dists, blocks = [], [b1, b2, b3, b4]
+
+        for i in range(len(blocks)-1):  
+            dists.append(hamming_distance(blocks[i],blocks[i+1])/KEYSIZE)
+
+        avg_hamming_dist.append((sum(dists) / len(dists), KEYSIZE))
+
+    print(sorted(avg_hamming_dist)[:5])
+    return sorted(avg_hamming_dist)[:5]
+
+
+def break_repeated_key_xor(file):
+    best_freq, ptxt = 0, ''
+    key_length = find_key_length(file)
+
+    for _, KEY_SIZE in key_length:
+        key = ''
+        blocks =['']*KEY_SIZE
+        for i,c in enumerate(file):
+            blocks[i % KEY_SIZE] += c
+
+        for block in blocks:
+            key += chr(break_single_byte(block))
+
+        txt = repeating_key_xor(file,key)
+        cur_freq = char_freq(txt)
+
+        if cur_freq > best_freq:
+            best_freq = cur_freq
+            ptxt = txt
+            best_key_size = KEY_SIZE
+            best_key = key
+
+    return best_key
 
